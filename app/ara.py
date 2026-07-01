@@ -1,45 +1,116 @@
-from app.brain import GeminiBrain
-from app.core.engine import ARAEngine
-from app.core.skill_registry import SkillRegistry
+# app/ara.py
 
-from app.skills.system import system_info
+from app.core.container import ServiceContainer
+
+from app.brain.planner import Planner
+from app.kernel.decision_engine import DecisionEngine
+
+from app.skills.skill_registry import SkillRegistry
+
+# Import these when they are implemented
+# from app.kernel.executor import Executor
+# from app.memory.memory_manager import MemoryManager
 
 
 class ARA:
 
+    NAME = "ARA"
+    VERSION = "0.2.0"
+    CODENAME = "Genesis"
+
     def __init__(self):
 
-        self.engine = ARAEngine()
+        self.container = ServiceContainer()
 
-        self.brain = GeminiBrain()
+        self.initialize()
 
-        self.skills = SkillRegistry()
+    # --------------------------------------------------
 
-        self.register_skills()
+    def initialize(self):
 
-    def register_skills(self):
+        print("\n========== BOOTING ARA ==========\n")
 
-        self.skills.register(
-            "system_info",
-            system_info
-        )
+        planner = Planner()
+        print("[OK] Planner")
 
-    def start(self):
+        decision_engine = DecisionEngine()
+        print("[OK] Decision Engine")
 
-        self.engine.start()
+        registry = SkillRegistry()
+        print("[OK] Skill Registry")
 
-    def process(self, prompt: str):
+        # Uncomment once created
 
-        prompt = prompt.strip()
+        # executor = Executor()
+        # print("[OK] Executor")
 
-        # temporary
+        # memory = MemoryManager()
+        # print("[OK] Memory")
 
-        if prompt.lower() == "system":
+        self.container.register("planner", planner)
+        self.container.register("decision_engine", decision_engine)
+        self.container.register("registry", registry)
 
-            return self.skills.execute(
-                "system_info"
-            )
+        # self.container.register("executor", executor)
+        # self.container.register("memory", memory)
+
+        print("\nARA ONLINE\n")
+
+    # --------------------------------------------------
+
+    @property
+    def version(self):
+
+        return self.VERSION
+
+    # --------------------------------------------------
+
+    def process(self, user_input: str):
+
+        planner = self.container.get("planner")
+
+        decision_engine = self.container.get("decision_engine")
+
+        intent = planner.plan(user_input)
+
+        decision = decision_engine.evaluate(intent)
 
         return {
-            "message": self.brain.ask(prompt)
+
+            "success": decision.approved,
+
+            "reason": decision.reason,
+
+            "risk": decision.risk,
+
+            "intent": {
+
+                "intent": intent.intent,
+
+                "skill": intent.skill,
+
+                "action": intent.action,
+
+                "parameters": intent.parameters,
+
+                "confidence": intent.confidence
+
+            }
+
+        }
+
+    # --------------------------------------------------
+
+    def status(self):
+
+        return {
+
+            "name": self.NAME,
+
+            "version": self.VERSION,
+
+            "codename": self.CODENAME,
+
+            "status": "ONLINE"
+
         }

@@ -1,34 +1,32 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
 
 from app.ara import ARA
 
-app = FastAPI()
-
 ara = ARA()
 
-
-class Prompt(BaseModel):
-
-    message: str
-
-
-@app.on_event("startup")
-async def startup():
-
-    ara.start()
+app = FastAPI(
+    title="ARA",
+    version=ara.version
+)
 
 
 @app.get("/")
-async def root():
+def home():
 
     return {
-        "assistant": "ARA",
-        "status": "online"
+        "message": "ARA AI Operating System"
     }
 
 
-@app.post("/chat")
-async def chat(prompt: Prompt):
+@app.get("/status")
+def status():
 
-    return ara.process(prompt.message)
+    return ara.status()
+
+
+@app.post("/process")
+def process(data: dict):
+
+    prompt = data.get("prompt", "")
+
+    return ara.process(prompt)
