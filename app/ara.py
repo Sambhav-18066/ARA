@@ -5,7 +5,7 @@ from app.core.container import ServiceContainer
 from app.brain.planner import Planner
 from app.kernel.decision_engine import DecisionEngine
 
-from app.skills.skill_registry import SkillRegistry
+from app.core.skill_registry import SkillRegistry
 
 # Import these when they are implemented
 # from app.kernel.executor import Executor
