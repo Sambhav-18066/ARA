@@ -59,19 +59,34 @@ class DecisionEngine:
                 "HIGH",
             )
 
-        # --------------------------------------------------
+                # --------------------------------------------------
         # DANGEROUS ACTION
         # --------------------------------------------------
 
-        action = intent.action or ""
+        action = (
+            intent.action or ""
+        ).lower()
 
-        if action.lower() in self.HIGH_RISK_ACTIONS:
+        if action in self.HIGH_RISK_ACTIONS:
 
-            return Decision(
-                False,
-                "Confirmation required.",
-                "HIGH",
+            parameters = (
+                intent.parameters or {}
             )
+
+            confirmed = bool(
+                parameters.get(
+                    "confirmed",
+                    False,
+                )
+            )
+
+            if not confirmed:
+
+                return Decision(
+                    False,
+                    "Confirmation required.",
+                    "HIGH",
+                )
 
         # --------------------------------------------------
         # LOW CONFIDENCE

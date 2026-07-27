@@ -100,20 +100,6 @@ class LocalRouter:
             return intent
 
         # --------------------------------------------------
-        # FILESYSTEM OPERATIONS
-        #
-        # Explicit filesystem actions must be routed before
-        # websites and applications.
-        # --------------------------------------------------
-
-        intent = self._route_filesystem(
-            original_text
-        )
-
-        if intent:
-            return intent
-
-        # --------------------------------------------------
         # APPLICATIONS
         # --------------------------------------------------
 
@@ -160,201 +146,6 @@ class LocalRouter:
 
         # Nothing deterministic matched.
         # AI planner may attempt the request.
-
-        return None
-
-    # ==================================================
-    # FILESYSTEM OPERATIONS
-    # ==================================================
-
-    def _route_filesystem(
-        self,
-        text: str,
-    ):
-
-        text = str(text).strip()
-
-        if not text:
-            return None
-
-        # --------------------------------------------------
-        # COPY
-        #
-        # Examples:
-        #
-        # copy yajnya.png to E:
-        # copy report.pdf to Downloads
-        # copy C:\test.txt to E:\Backup
-        # copy "my image.png" to "E:\My Files"
-        # --------------------------------------------------
-
-        match = re.fullmatch(
-            r"copy\s+(.+?)\s+to\s+(.+)",
-            text,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-
-            source = (
-                match
-                .group(1)
-                .strip()
-                .strip('"')
-            )
-
-            destination = (
-                match
-                .group(2)
-                .strip()
-                .strip('"')
-            )
-
-            if not source or not destination:
-                return None
-
-            return Intent(
-                intent="copy_resource",
-                skill="windows",
-                action="copy",
-                parameters={
-                    "source": source,
-                    "destination": destination,
-                },
-                confidence=1.0,
-            )
-
-        # --------------------------------------------------
-        # MOVE
-        #
-        # Examples:
-        #
-        # move yajnya.png to Downloads
-        # move report.pdf to Desktop
-        # move C:\test.txt to E:\Backup
-        # --------------------------------------------------
-
-        match = re.fullmatch(
-            r"move\s+(.+?)\s+to\s+(.+)",
-            text,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-
-            source = (
-                match
-                .group(1)
-                .strip()
-                .strip('"')
-            )
-
-            destination = (
-                match
-                .group(2)
-                .strip()
-                .strip('"')
-            )
-
-            if not source or not destination:
-                return None
-
-            return Intent(
-                intent="move_resource",
-                skill="windows",
-                action="move",
-                parameters={
-                    "source": source,
-                    "destination": destination,
-                },
-                confidence=1.0,
-            )
-
-        # --------------------------------------------------
-        # RENAME
-        #
-        # Examples:
-        #
-        # rename report.pdf to final-report.pdf
-        # rename yajnya.png to yajnya-old.png
-        # rename "old name.txt" to "new name.txt"
-        # --------------------------------------------------
-
-        match = re.fullmatch(
-            r"rename\s+(.+?)\s+to\s+(.+)",
-            text,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-
-            source = (
-                match
-                .group(1)
-                .strip()
-                .strip('"')
-            )
-
-            new_name = (
-                match
-                .group(2)
-                .strip()
-                .strip('"')
-            )
-
-            if not source or not new_name:
-                return None
-
-            return Intent(
-                intent="rename_resource",
-                skill="windows",
-                action="rename",
-                parameters={
-                    "source": source,
-                    "new_name": new_name,
-                },
-                confidence=1.0,
-            )
-
-        # --------------------------------------------------
-        # DELETE
-        #
-        # Examples:
-        #
-        # delete report.pdf
-        # delete ara_final_test.txt
-        # delete "old folder"
-        # remove old-file.txt
-        # --------------------------------------------------
-
-        match = re.fullmatch(
-            r"(?:delete|remove)\s+(.+)",
-            text,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-
-            target = (
-                match
-                .group(1)
-                .strip()
-                .strip('"')
-            )
-
-            if not target:
-                return None
-
-            return Intent(
-                intent="delete_resource",
-                skill="windows",
-                action="delete",
-                parameters={
-                    "target": target,
-                    "requires_confirmation": True,
-                },
-                confidence=1.0,
-            )
 
         return None
 
@@ -962,40 +753,11 @@ class LocalRouter:
         text: str,
     ):
 
-        text = (
-            str(text)
-            .strip()
-        )
-
-        if not text:
-            return None
-
-        # More specific forms MUST come before
-        # generic "search ..." patterns.
-
         patterns = (
-            # Google
             r"search\s+google\s+for\s+(.+)",
-            r"search\s+google\s+(.+)",
-
-            # Internet / web
-            r"search\s+(?:the\s+)?internet\s+for\s+(.+)",
-            r"search\s+(?:the\s+)?web\s+for\s+(.+)",
-            r"search\s+online\s+for\s+(.+)",
-
-            # Natural lookup language
-            r"look\s+up\s+(.+)",
-            r"lookup\s+(.+)",
-            r"find\s+online\s+(.+)",
-            r"find\s+on\s+(?:the\s+)?internet\s+(.+)",
-            r"find\s+on\s+(?:the\s+)?web\s+(.+)",
-
-            # Generic search
             r"search\s+for\s+(.+)",
-            r"search\s+(.+)",
-
-            # Google used as a verb
             r"google\s+(.+)",
+            r"search\s+(.+)",
         )
 
         for pattern in patterns:
@@ -1003,7 +765,6 @@ class LocalRouter:
             match = re.fullmatch(
                 pattern,
                 text,
-                flags=re.IGNORECASE,
             )
 
             if not match:

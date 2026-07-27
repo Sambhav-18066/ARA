@@ -316,46 +316,6 @@ class LocalRouter:
                 confidence=1.0,
             )
 
-        # --------------------------------------------------
-        # DELETE
-        #
-        # Examples:
-        #
-        # delete report.pdf
-        # delete ara_final_test.txt
-        # delete "old folder"
-        # remove old-file.txt
-        # --------------------------------------------------
-
-        match = re.fullmatch(
-            r"(?:delete|remove)\s+(.+)",
-            text,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-
-            target = (
-                match
-                .group(1)
-                .strip()
-                .strip('"')
-            )
-
-            if not target:
-                return None
-
-            return Intent(
-                intent="delete_resource",
-                skill="windows",
-                action="delete",
-                parameters={
-                    "target": target,
-                    "requires_confirmation": True,
-                },
-                confidence=1.0,
-            )
-
         return None
 
     # ==================================================

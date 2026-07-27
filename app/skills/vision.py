@@ -180,7 +180,7 @@ class VisionSkill(Skill):
     def _ocr(self, parameters):
 
         # --------------------------------------------------
-        # Check OCR availability
+        # CHECK OCR
         # --------------------------------------------------
 
         if self.ocr is None:
@@ -194,7 +194,7 @@ class VisionSkill(Skill):
             }
 
         # --------------------------------------------------
-        # Capture current screen
+        # CAPTURE FRESH SCREEN
         # --------------------------------------------------
 
         capture_result = (
@@ -208,7 +208,7 @@ class VisionSkill(Skill):
             return capture_result
 
         # --------------------------------------------------
-        # Extract screenshot path
+        # SCREENSHOT PATH
         # --------------------------------------------------
 
         image_path = self._get_image_path(
@@ -227,7 +227,7 @@ class VisionSkill(Skill):
             }
 
         # --------------------------------------------------
-        # Run OCR
+        # RUN OCR
         # --------------------------------------------------
 
         try:
@@ -261,7 +261,7 @@ class VisionSkill(Skill):
     def _find_text(self, parameters):
 
         # --------------------------------------------------
-        # Check OCR
+        # CHECK OCR
         # --------------------------------------------------
 
         if self.ocr is None:
@@ -275,7 +275,7 @@ class VisionSkill(Skill):
             }
 
         # --------------------------------------------------
-        # Target
+        # TARGET
         # --------------------------------------------------
 
         target = (
@@ -295,7 +295,7 @@ class VisionSkill(Skill):
             }
 
         # --------------------------------------------------
-        # Capture current screen
+        # CAPTURE FRESH SCREEN
         # --------------------------------------------------
 
         capture_result = (
@@ -309,7 +309,7 @@ class VisionSkill(Skill):
             return capture_result
 
         # --------------------------------------------------
-        # Screenshot path
+        # SCREENSHOT PATH
         # --------------------------------------------------
 
         image_path = self._get_image_path(
@@ -354,20 +354,22 @@ class VisionSkill(Skill):
 
             return result
 
+        # --------------------------------------------------
+        # BUILD CANDIDATES
+        # --------------------------------------------------
+
         matches = result.get(
             "matches",
-            []
+            [],
         )
-
-        # --------------------------------------------------
-        # Convert OCR matches into candidates
-        # --------------------------------------------------
 
         candidates = self._build_candidates(
             matches
         )
 
-        # Sort by OCR confidence for display.
+        # --------------------------------------------------
+        # SORT BY OCR CONFIDENCE FOR DISPLAY
+        # --------------------------------------------------
 
         candidates.sort(
             key=lambda item: item.get(
@@ -386,8 +388,11 @@ class VisionSkill(Skill):
 
             candidate["index"] = index
 
-        return {
+        # --------------------------------------------------
+        # RESULT
+        # --------------------------------------------------
 
+        response = {
             "success": True,
 
             "message": (
@@ -406,6 +411,16 @@ class VisionSkill(Skill):
             "image_path": image_path,
         }
 
+        # Preserve screen metadata if OCR provided it.
+
+        if result.get("screen") is not None:
+
+            response["screen"] = (
+                result["screen"]
+            )
+
+        return response
+
     # ==================================================
     # SELECT VISUAL TARGET
     # ==================================================
@@ -413,7 +428,7 @@ class VisionSkill(Skill):
     def _select_text(self, parameters):
 
         # --------------------------------------------------
-        # Check OCR
+        # CHECK OCR
         # --------------------------------------------------
 
         if self.ocr is None:
@@ -428,7 +443,7 @@ class VisionSkill(Skill):
             }
 
         # --------------------------------------------------
-        # Check target selector
+        # CHECK TARGET SELECTOR
         # --------------------------------------------------
 
         if self.target_selector is None:
@@ -443,7 +458,7 @@ class VisionSkill(Skill):
             }
 
         # --------------------------------------------------
-        # Requested target
+        # TARGET
         # --------------------------------------------------
 
         target = (
@@ -464,7 +479,7 @@ class VisionSkill(Skill):
             }
 
         # --------------------------------------------------
-        # Capture FRESH screen
+        # CAPTURE FRESH SCREEN
         # --------------------------------------------------
 
         capture_result = (
@@ -478,7 +493,7 @@ class VisionSkill(Skill):
             return capture_result
 
         # --------------------------------------------------
-        # Screenshot path
+        # SCREENSHOT PATH
         # --------------------------------------------------
 
         image_path = self._get_image_path(
@@ -498,7 +513,7 @@ class VisionSkill(Skill):
             }
 
         # --------------------------------------------------
-        # Search target using OCR
+        # OCR FIND
         # --------------------------------------------------
 
         try:
@@ -517,6 +532,7 @@ class VisionSkill(Skill):
                     f"Visual target search failed: {error}"
                 ),
                 "reason": "ocr_find_error",
+                "image_path": image_path,
             }
 
         if not result.get(
@@ -529,12 +545,12 @@ class VisionSkill(Skill):
             return result
 
         # --------------------------------------------------
-        # Build candidates
+        # BUILD CANDIDATES
         # --------------------------------------------------
 
         matches = result.get(
             "matches",
-            []
+            [],
         )
 
         candidates = self._build_candidates(
@@ -542,7 +558,7 @@ class VisionSkill(Skill):
         )
 
         # --------------------------------------------------
-        # Target selection
+        # SELECT TARGET
         # --------------------------------------------------
 
         try:
@@ -567,12 +583,23 @@ class VisionSkill(Skill):
                 "image_path": image_path,
             }
 
-        # Keep screenshot path so future visual-action
-        # systems know which screen state was evaluated.
+        # --------------------------------------------------
+        # SCREEN STATE
+        # --------------------------------------------------
+        #
+        # Keep screenshot path so visual actions know
+        # which screen state was evaluated.
+        # --------------------------------------------------
 
         selection["image_path"] = (
             image_path
         )
+
+        if result.get("screen") is not None:
+
+            selection["screen"] = (
+                result["screen"]
+            )
 
         return selection
 
@@ -583,7 +610,7 @@ class VisionSkill(Skill):
     def _analyze(self, parameters):
 
         # --------------------------------------------------
-        # AI availability
+        # AI AVAILABILITY
         # --------------------------------------------------
 
         if self.analyzer is None:
@@ -599,7 +626,7 @@ class VisionSkill(Skill):
             }
 
         # --------------------------------------------------
-        # Capture current screen
+        # CAPTURE FRESH SCREEN
         # --------------------------------------------------
 
         capture_result = (
@@ -613,7 +640,7 @@ class VisionSkill(Skill):
             return capture_result
 
         # --------------------------------------------------
-        # Screenshot path
+        # SCREENSHOT PATH
         # --------------------------------------------------
 
         image_path = self._get_image_path(
@@ -632,7 +659,7 @@ class VisionSkill(Skill):
             }
 
         # --------------------------------------------------
-        # Optional prompt
+        # OPTIONAL PROMPT
         # --------------------------------------------------
 
         prompt = parameters.get(
@@ -640,7 +667,7 @@ class VisionSkill(Skill):
         )
 
         # --------------------------------------------------
-        # AI analysis
+        # AI ANALYSIS
         # --------------------------------------------------
 
         try:
@@ -675,22 +702,66 @@ class VisionSkill(Skill):
             start=1,
         ):
 
+            # --------------------------------------------------
+            # PRESERVE ALL OCR METADATA
+            # --------------------------------------------------
+            #
+            # Do NOT rebuild the OCR candidate from scratch.
+            #
+            # LocalOCR may provide:
+            #
+            #   screen_region
+            #   near_screen_edge
+            #   relative_x
+            #   relative_y
+            #   line_text
+            #   previous_text
+            #   next_text
+            #   surrounding_text
+            #   block_num
+            #   line_num
+            #
+            # TargetSelector can use this metadata later.
+            # --------------------------------------------------
+
+            candidate = dict(
+                match
+            )
+
+            # --------------------------------------------------
+            # CENTER COORDINATES
+            # --------------------------------------------------
+
             center = match.get(
                 "center",
-                {}
+                {},
             )
+
+            center_x = match.get(
+                "center_x"
+            )
+
+            center_y = match.get(
+                "center_y"
+            )
+
+            # Support old OCR representation.
+
+            if center_x is None:
+
+                center_x = center.get(
+                    "x"
+                )
+
+            if center_y is None:
+
+                center_y = center.get(
+                    "y"
+                )
 
             # --------------------------------------------------
-            # Center fallback
+            # BOUNDING BOX
             # --------------------------------------------------
-
-            center_x = center.get(
-                "x"
-            )
-
-            center_y = center.get(
-                "y"
-            )
 
             x = match.get(
                 "x"
@@ -708,59 +779,51 @@ class VisionSkill(Skill):
                 "height"
             )
 
-            # If OCR somehow doesn't provide center,
-            # calculate it from bounding box.
+            # --------------------------------------------------
+            # CENTER FALLBACK
+            # --------------------------------------------------
 
             if (
                 center_x is None
-                and
-                x is not None
-                and
-                width is not None
+                and x is not None
+                and width is not None
             ):
 
                 center_x = (
-                    x
-                    + width // 2
+                    x + width // 2
                 )
 
             if (
                 center_y is None
-                and
-                y is not None
-                and
-                height is not None
+                and y is not None
+                and height is not None
             ):
 
                 center_y = (
-                    y
-                    + height // 2
+                    y + height // 2
                 )
 
-            candidate = {
+            # --------------------------------------------------
+            # NORMALIZE REQUIRED FIELDS
+            # --------------------------------------------------
 
-                "index": index,
+            candidate["index"] = (
+                index
+            )
 
-                "text": match.get(
-                    "text"
-                ),
+            candidate["center_x"] = (
+                center_x
+            )
 
-                "confidence": match.get(
-                    "confidence",
-                    0,
-                ),
+            candidate["center_y"] = (
+                center_y
+            )
 
-                "x": x,
+            # Keep nested center for backward compatibility.
 
-                "y": y,
-
-                "width": width,
-
-                "height": height,
-
-                "center_x": center_x,
-
-                "center_y": center_y,
+            candidate["center"] = {
+                "x": center_x,
+                "y": center_y,
             }
 
             candidates.append(

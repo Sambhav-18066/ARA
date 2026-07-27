@@ -100,20 +100,6 @@ class LocalRouter:
             return intent
 
         # --------------------------------------------------
-        # FILESYSTEM OPERATIONS
-        #
-        # Explicit filesystem actions must be routed before
-        # websites and applications.
-        # --------------------------------------------------
-
-        intent = self._route_filesystem(
-            original_text
-        )
-
-        if intent:
-            return intent
-
-        # --------------------------------------------------
         # APPLICATIONS
         # --------------------------------------------------
 
@@ -160,201 +146,6 @@ class LocalRouter:
 
         # Nothing deterministic matched.
         # AI planner may attempt the request.
-
-        return None
-
-    # ==================================================
-    # FILESYSTEM OPERATIONS
-    # ==================================================
-
-    def _route_filesystem(
-        self,
-        text: str,
-    ):
-
-        text = str(text).strip()
-
-        if not text:
-            return None
-
-        # --------------------------------------------------
-        # COPY
-        #
-        # Examples:
-        #
-        # copy yajnya.png to E:
-        # copy report.pdf to Downloads
-        # copy C:\test.txt to E:\Backup
-        # copy "my image.png" to "E:\My Files"
-        # --------------------------------------------------
-
-        match = re.fullmatch(
-            r"copy\s+(.+?)\s+to\s+(.+)",
-            text,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-
-            source = (
-                match
-                .group(1)
-                .strip()
-                .strip('"')
-            )
-
-            destination = (
-                match
-                .group(2)
-                .strip()
-                .strip('"')
-            )
-
-            if not source or not destination:
-                return None
-
-            return Intent(
-                intent="copy_resource",
-                skill="windows",
-                action="copy",
-                parameters={
-                    "source": source,
-                    "destination": destination,
-                },
-                confidence=1.0,
-            )
-
-        # --------------------------------------------------
-        # MOVE
-        #
-        # Examples:
-        #
-        # move yajnya.png to Downloads
-        # move report.pdf to Desktop
-        # move C:\test.txt to E:\Backup
-        # --------------------------------------------------
-
-        match = re.fullmatch(
-            r"move\s+(.+?)\s+to\s+(.+)",
-            text,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-
-            source = (
-                match
-                .group(1)
-                .strip()
-                .strip('"')
-            )
-
-            destination = (
-                match
-                .group(2)
-                .strip()
-                .strip('"')
-            )
-
-            if not source or not destination:
-                return None
-
-            return Intent(
-                intent="move_resource",
-                skill="windows",
-                action="move",
-                parameters={
-                    "source": source,
-                    "destination": destination,
-                },
-                confidence=1.0,
-            )
-
-        # --------------------------------------------------
-        # RENAME
-        #
-        # Examples:
-        #
-        # rename report.pdf to final-report.pdf
-        # rename yajnya.png to yajnya-old.png
-        # rename "old name.txt" to "new name.txt"
-        # --------------------------------------------------
-
-        match = re.fullmatch(
-            r"rename\s+(.+?)\s+to\s+(.+)",
-            text,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-
-            source = (
-                match
-                .group(1)
-                .strip()
-                .strip('"')
-            )
-
-            new_name = (
-                match
-                .group(2)
-                .strip()
-                .strip('"')
-            )
-
-            if not source or not new_name:
-                return None
-
-            return Intent(
-                intent="rename_resource",
-                skill="windows",
-                action="rename",
-                parameters={
-                    "source": source,
-                    "new_name": new_name,
-                },
-                confidence=1.0,
-            )
-
-        # --------------------------------------------------
-        # DELETE
-        #
-        # Examples:
-        #
-        # delete report.pdf
-        # delete ara_final_test.txt
-        # delete "old folder"
-        # remove old-file.txt
-        # --------------------------------------------------
-
-        match = re.fullmatch(
-            r"(?:delete|remove)\s+(.+)",
-            text,
-            flags=re.IGNORECASE,
-        )
-
-        if match:
-
-            target = (
-                match
-                .group(1)
-                .strip()
-                .strip('"')
-            )
-
-            if not target:
-                return None
-
-            return Intent(
-                intent="delete_resource",
-                skill="windows",
-                action="delete",
-                parameters={
-                    "target": target,
-                    "requires_confirmation": True,
-                },
-                confidence=1.0,
-            )
 
         return None
 
@@ -740,224 +531,238 @@ class LocalRouter:
     # ==================================================
 
     def _route_website(
-        self,
-        text: str,
-    ):
+    self,
+    text: str,
+):
 
-        match = re.fullmatch(
-            r"(?:open|visit|go\s+to)\s+(.+)",
-            text,
-            flags=re.IGNORECASE,
+    match = re.fullmatch(
+        r"(?:open|visit|go\s+to)\s+(.+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    if not match:
+        return None
+
+    website = (
+        match
+        .group(1)
+        .strip()
+    )
+
+    if not website:
+        return None
+
+    website_lower = (
+        website
+        .lower()
+        .strip()
+    )
+
+    # ==================================================
+    # KNOWN WEBSITE ALIAS
+    # ==================================================
+
+    alias = (
+        website_lower
+        .removeprefix("www.")
+    )
+
+    url = self.WEBSITES.get(
+        alias
+    )
+
+    if url:
+
+        return Intent(
+            intent="open_website",
+            skill="browser",
+            action="open",
+            parameters={
+                "url": url,
+            },
+            confidence=1.0,
         )
 
-        if not match:
-            return None
+    # ==================================================
+    # LOCAL FILE EXTENSION PROTECTION
+    # ==================================================
+    #
+    # Do not interpret obvious filenames as domains.
+    #
+    # Examples:
+    #
+    #   yajnya.png
+    #   report.pdf
+    #   main.py
+    #   notes.txt
+    #   data.json
+    #
+    # These should fall through so a file resolver can
+    # handle them later.
+    # ==================================================
 
-        website = (
-            match
-            .group(1)
-            .strip()
-        )
+    local_file_extensions = {
+        # Images
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".webp",
+        ".svg",
+        ".ico",
 
-        if not website:
-            return None
+        # Documents
+        ".pdf",
+        ".txt",
+        ".doc",
+        ".docx",
+        ".rtf",
+        ".odt",
 
-        website_lower = (
-            website
-            .lower()
-            .strip()
-        )
+        # Spreadsheets
+        ".xls",
+        ".xlsx",
+        ".csv",
+        ".ods",
 
-        # --------------------------------------------------
-        # KNOWN WEBSITE ALIAS
-        # --------------------------------------------------
+        # Presentations
+        ".ppt",
+        ".pptx",
+        ".odp",
 
-        alias = (
-            website_lower
-            .removeprefix("www.")
-        )
+        # Code / data
+        ".py",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".java",
+        ".cpp",
+        ".c",
+        ".h",
+        ".cs",
+        ".go",
+        ".rs",
+        ".php",
+        ".rb",
+        ".json",
+        ".xml",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".md",
 
-        url = self.WEBSITES.get(
-            alias
-        )
+        # Archives
+        ".zip",
+        ".rar",
+        ".7z",
+        ".tar",
+        ".gz",
 
-        if url:
+        # Audio
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".aac",
+        ".m4a",
+        ".ogg",
 
-            return Intent(
-                intent="open_website",
-                skill="browser",
-                action="open",
-                parameters={
-                    "url": url,
-                },
-                confidence=1.0,
+        # Video
+        ".mp4",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".wmv",
+        ".webm",
+
+        # Windows / executables
+        ".exe",
+        ".msi",
+        ".lnk",
+        ".bat",
+        ".cmd",
+        ".ps1",
+    }
+
+    # Ignore URL paths/query strings when checking
+    # the apparent extension.
+
+    filename_candidate = (
+        website_lower
+        .split("?", 1)[0]
+        .split("#", 1)[0]
+        .rstrip("/")
+    )
+
+    # Only apply filename protection when the user did
+    # NOT explicitly provide a URL scheme.
+
+    explicit_scheme = (
+        website_lower.startswith(
+            (
+                "http://",
+                "https://",
             )
-
-        # --------------------------------------------------
-        # LOCAL FILE EXTENSION PROTECTION
-        #
-        # Obvious filenames must not become fake domains.
-        #
-        # Examples:
-        #   yajnya.png
-        #   report.pdf
-        #   main.py
-        # --------------------------------------------------
-
-        local_file_extensions = {
-            # Images
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".gif",
-            ".bmp",
-            ".webp",
-            ".svg",
-            ".ico",
-
-            # Documents
-            ".pdf",
-            ".txt",
-            ".doc",
-            ".docx",
-            ".rtf",
-            ".odt",
-
-            # Spreadsheets
-            ".xls",
-            ".xlsx",
-            ".csv",
-            ".ods",
-
-            # Presentations
-            ".ppt",
-            ".pptx",
-            ".odp",
-
-            # Code / data
-            ".py",
-            ".js",
-            ".ts",
-            ".jsx",
-            ".tsx",
-            ".java",
-            ".cpp",
-            ".c",
-            ".h",
-            ".cs",
-            ".go",
-            ".rs",
-            ".php",
-            ".rb",
-            ".json",
-            ".xml",
-            ".yaml",
-            ".yml",
-            ".toml",
-            ".ini",
-            ".cfg",
-            ".md",
-
-            # Archives
-            ".zip",
-            ".rar",
-            ".7z",
-            ".tar",
-            ".gz",
-
-            # Audio
-            ".mp3",
-            ".wav",
-            ".flac",
-            ".aac",
-            ".m4a",
-            ".ogg",
-
-            # Video
-            ".mp4",
-            ".mkv",
-            ".avi",
-            ".mov",
-            ".wmv",
-            ".webm",
-
-            # Windows / executable
-            ".exe",
-            ".msi",
-            ".lnk",
-            ".bat",
-            ".cmd",
-            ".ps1",
-        }
-
-        filename_candidate = (
-            website_lower
-            .split("?", 1)[0]
-            .split("#", 1)[0]
-            .rstrip("/")
         )
+    )
 
-        explicit_scheme = (
-            website_lower.startswith(
-                (
-                    "http://",
-                    "https://",
-                )
-            )
-        )
+    if not explicit_scheme:
 
-        if not explicit_scheme:
+        for extension in local_file_extensions:
 
-            for extension in local_file_extensions:
-
-                if filename_candidate.endswith(
-                    extension
-                ):
-                    return None
-
-        # --------------------------------------------------
-        # EXPLICIT DOMAIN / URL
-        # --------------------------------------------------
-
-        if re.fullmatch(
-            r"(?:https?://)?"
-            r"(?:www\.)?"
-            r"[a-z0-9.-]+\.[a-z]{2,}"
-            r"(?::\d+)?"
-            r"(?:/[^\s]*)?",
-            website_lower,
-            flags=re.IGNORECASE,
-        ):
-
-            if not website_lower.startswith(
-                (
-                    "http://",
-                    "https://",
-                )
+            if filename_candidate.endswith(
+                extension
             ):
 
-                website_lower = (
-                    "https://"
-                    + website_lower
-                )
+                return None
 
-            return Intent(
-                intent="open_website",
-                skill="browser",
-                action="open",
-                parameters={
-                    "url": website_lower,
-                },
-                confidence=1.0,
+    # ==================================================
+    # EXPLICIT DOMAIN / URL
+    # ==================================================
+
+    if re.fullmatch(
+        r"(?:https?://)?"
+        r"(?:www\.)?"
+        r"[a-z0-9.-]+\.[a-z]{2,}"
+        r"(?::\d+)?"
+        r"(?:/[^\s]*)?",
+        website_lower,
+        flags=re.IGNORECASE,
+    ):
+
+        if not website_lower.startswith(
+            (
+                "http://",
+                "https://",
+            )
+        ):
+
+            website_lower = (
+                "https://"
+                + website_lower
             )
 
-        return None
+        return Intent(
+            intent="open_website",
+            skill="browser",
+            action="open",
+            parameters={
+                "url": website_lower,
+            },
+            confidence=1.0,
+        )
+
+    return None
 
     # ==================================================
     # WEB SEARCH
     # ==================================================
 
-    def _route_search(
+        def _route_search(
         self,
         text: str,
     ):
@@ -970,15 +775,12 @@ class LocalRouter:
         if not text:
             return None
 
-        # More specific forms MUST come before
-        # generic "search ..." patterns.
-
         patterns = (
-            # Google
+            # Explicit Google search
             r"search\s+google\s+for\s+(.+)",
             r"search\s+google\s+(.+)",
 
-            # Internet / web
+            # Explicit internet/web search
             r"search\s+(?:the\s+)?internet\s+for\s+(.+)",
             r"search\s+(?:the\s+)?web\s+for\s+(.+)",
             r"search\s+online\s+for\s+(.+)",
@@ -988,13 +790,12 @@ class LocalRouter:
             r"lookup\s+(.+)",
             r"find\s+online\s+(.+)",
             r"find\s+on\s+(?:the\s+)?internet\s+(.+)",
-            r"find\s+on\s+(?:the\s+)?web\s+(.+)",
 
             # Generic search
             r"search\s+for\s+(.+)",
             r"search\s+(.+)",
 
-            # Google used as a verb
+            # Google as a verb
             r"google\s+(.+)",
         )
 
