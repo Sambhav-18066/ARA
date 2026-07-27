@@ -7,7 +7,7 @@ class Decision:
         self,
         approved: bool,
         reason: str,
-        risk: str
+        risk: str,
     ):
         self.approved = approved
         self.reason = reason
@@ -16,51 +16,81 @@ class Decision:
 
 class DecisionEngine:
 
+    # ==================================================
+    # ALLOWED SKILLS
+    # ==================================================
+
     SAFE_SKILLS = {
         "system",
         "memory",
         "browser",
-        "windows"
+        "windows",
+        "calculator",
+        "vision",
+        "visual_action",
     }
+
+    # ==================================================
+    # HIGH-RISK ACTIONS
+    # ==================================================
 
     HIGH_RISK_ACTIONS = {
         "delete",
         "format",
         "shutdown",
-        "restart"
+        "restart",
     }
+
+    # ==================================================
+    # EVALUATE
+    # ==================================================
 
     def evaluate(self, intent: Intent):
 
-        # Unknown skill
+        # --------------------------------------------------
+        # UNKNOWN SKILL
+        # --------------------------------------------------
+
         if intent.skill not in self.SAFE_SKILLS:
 
             return Decision(
                 False,
                 "Unknown skill.",
-                "HIGH"
+                "HIGH",
             )
 
-        # Dangerous action
-        if intent.action.lower() in self.HIGH_RISK_ACTIONS:
+        # --------------------------------------------------
+        # DANGEROUS ACTION
+        # --------------------------------------------------
+
+        action = intent.action or ""
+
+        if action.lower() in self.HIGH_RISK_ACTIONS:
 
             return Decision(
                 False,
                 "Confirmation required.",
-                "HIGH"
+                "HIGH",
             )
 
-        # Low confidence
+        # --------------------------------------------------
+        # LOW CONFIDENCE
+        # --------------------------------------------------
+
         if intent.confidence < 0.70:
 
             return Decision(
                 False,
                 "Confidence too low.",
-                "MEDIUM"
+                "MEDIUM",
             )
+
+        # --------------------------------------------------
+        # APPROVED
+        # --------------------------------------------------
 
         return Decision(
             True,
             "Approved",
-            "LOW"
+            "LOW",
         )

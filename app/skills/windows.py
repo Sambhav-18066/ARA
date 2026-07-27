@@ -1,0 +1,1269 @@
+import os
+import time
+
+import pyautogui
+import pygetwindow as gw
+
+from app.skills.base import Skill
+
+
+# PyAutoGUI emergency failsafe.
+# Moving the mouse to the top-left corner can abort automation.
+pyautogui.FAILSAFE = True
+
+
+class WindowsSkill(Skill):
+
+    name = "windows"
+
+    # ==================================================
+    # SUPPORTED APPLICATIONS
+    # ==================================================
+
+    APPS = {
+        "chrome": r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        "notepad": "notepad.exe",
+        "calculator": "calc.exe",
+        "paint": "mspaint.exe",
+    }
+
+    # ==================================================
+    # MAIN EXECUTOR
+    # ==================================================
+
+    def execute(self, action, parameters):
+
+        if parameters is None:
+            parameters = {}
+
+        # Applications
+        if action == "open":
+            return self._open_application(parameters)
+
+        # Keyboard
+        if action == "type":
+            return self._type_text(parameters)
+
+        if action == "hotkey":
+            return self._hotkey(parameters)
+
+        if action == "press":
+            return self._press_key(parameters)
+
+        # Windows
+        if action == "active_window":
+            return self._active_window()
+
+        if action == "list_windows":
+            return self._list_windows()
+
+        if action == "focus":
+            return self._focus_window(parameters)
+
+        if action == "wait_for_window":
+            return self._wait_for_window(parameters)
+
+        if action == "minimize":
+            return self._minimize_window(parameters)
+
+        if action == "maximize":
+            return self._maximize_window(parameters)
+
+        if action == "restore":
+            return self._restore_window(parameters)
+
+        if action == "close":
+            return self._close_window(parameters)
+
+        # Mouse
+        if action == "mouse_position":
+            return self._mouse_position()
+
+        if action == "mouse_move":
+            return self._mouse_move(parameters)
+
+        if action == "click":
+            return self._mouse_click(parameters)
+
+        if action == "double_click":
+            return self._mouse_double_click(parameters)
+
+        if action == "right_click":
+            return self._mouse_right_click(parameters)
+
+        if action == "scroll":
+            return self._mouse_scroll(parameters)
+
+        return {
+            "success": False,
+            "message": f"Unknown Windows action: {action}",
+        }
+
+    # ==================================================
+    # OPEN APPLICATION
+    # ==================================================
+
+    def _open_application(self, parameters):
+
+        application = (
+            str(parameters.get("application", ""))
+            .lower()
+            .strip()
+        )
+
+        if not application:
+            return {
+                "success": False,
+                "message": "No application specified.",
+            }
+
+        executable = self.APPS.get(application)
+
+        if not executable:
+            return {
+                "success": False,
+                "message": (
+                    f"Application '{application}' "
+                    "is not supported yet."
+                ),
+            }
+
+        try:
+            os.startfile(executable)
+
+            return {
+                "success": True,
+                "message": f"{application} launched.",
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not launch {application}: {error}"
+                ),
+            }
+
+    # ==================================================
+    # ACTIVE WINDOW
+    # ==================================================
+
+    def _active_window(self):
+
+        try:
+            window = gw.getActiveWindow()
+
+            if window is None:
+                return {
+                    "success": False,
+                    "message": "No active window detected.",
+                }
+
+            return {
+                "success": True,
+                "message": f"Active window: {window.title}",
+                "data": {
+                    "title": window.title,
+                },
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not detect active window: {error}"
+                ),
+            }
+
+    # ==================================================
+    # LIST WINDOWS
+    # ==================================================
+
+    def _list_windows(self):
+
+        try:
+            titles = []
+
+            for window in gw.getAllWindows():
+
+                title = window.title.strip()
+
+                if title and title not in titles:
+                    titles.append(title)
+
+            return {
+                "success": True,
+                "message": (
+                    f"Found {len(titles)} open windows."
+                ),
+                "data": {
+                    "windows": titles,
+                },
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not list windows: {error}"
+                ),
+            }
+
+    # ==================================================
+    # FIND WINDOW
+    # ==================================================
+
+    def _find_window(self, title):
+
+        if not title:
+            return None
+
+        target = str(title).lower().strip()
+
+        if not target:
+            return None
+
+        try:
+            windows = gw.getAllWindows()
+
+            # Exact title first.
+            for window in windows:
+
+                window_title = (
+                    window.title
+                    .lower()
+                    .strip()
+                )
+
+                if window_title == target:
+                    return window
+
+            # Then partial title match.
+            for window in windows:
+
+                window_title = (
+                    window.title
+                    .lower()
+                    .strip()
+                )
+
+                if target in window_title:
+                    return window
+
+            return None
+
+        except Exception:
+            return None
+
+    # ==================================================
+    # WAIT FOR WINDOW
+    # ==================================================
+
+    def _wait_for_window(self, parameters):
+
+        title = (
+            str(parameters.get("title", ""))
+            .strip()
+        )
+
+        timeout = parameters.get("timeout", 10)
+
+        try:
+            timeout = float(timeout)
+
+        except (TypeError, ValueError):
+            timeout = 10
+
+        timeout = max(0.5, min(timeout, 60))
+
+        if not title:
+            return {
+                "success": False,
+                "message": "No window title specified.",
+            }
+
+        start = time.time()
+
+        while time.time() - start < timeout:
+
+            window = self._find_window(title)
+
+            if window:
+                return {
+                    "success": True,
+                    "message": (
+                        f"Window found: {window.title}"
+                    ),
+                    "data": {
+                        "title": window.title,
+                    },
+                }
+
+            time.sleep(0.2)
+
+        return {
+            "success": False,
+            "message": (
+                f"Timed out waiting for window '{title}'."
+            ),
+        }
+
+    # ==================================================
+    # FOCUS WINDOW
+    # ==================================================
+
+    def _focus_window(self, parameters):
+
+        title = (
+            str(parameters.get("title", ""))
+            .strip()
+        )
+
+        if not title:
+            return {
+                "success": False,
+                "message": "No window title specified.",
+            }
+
+        try:
+            window = self._find_window(title)
+
+            if window is None:
+                return {
+                    "success": False,
+                    "message": (
+                        f"Window '{title}' was not found."
+                    ),
+                }
+
+            # Restore first if minimized.
+            if window.isMinimized:
+                window.restore()
+                time.sleep(0.3)
+
+            try:
+                window.activate()
+
+            except Exception as error:
+                # PyGetWindow can occasionally report an error
+                # even though Windows actually activated it.
+                print(
+                    "[WINDOW WARNING] "
+                    f"activate(): {error}"
+                )
+
+            # Verify focus.
+            start = time.time()
+
+            target_title = (
+                window.title
+                .lower()
+                .strip()
+            )
+
+            requested_title = (
+                title
+                .lower()
+                .strip()
+            )
+
+            while time.time() - start < 2.0:
+
+                active = gw.getActiveWindow()
+
+                if active is not None:
+
+                    active_title = (
+                        active.title
+                        .lower()
+                        .strip()
+                    )
+
+                    if active_title == target_title:
+                        return {
+                            "success": True,
+                            "message": (
+                                f"Focused window: "
+                                f"{window.title}"
+                            ),
+                            "data": {
+                                "title": window.title,
+                            },
+                        }
+
+                    if requested_title in active_title:
+                        return {
+                            "success": True,
+                            "message": (
+                                f"Focused window: "
+                                f"{active.title}"
+                            ),
+                            "data": {
+                                "title": active.title,
+                            },
+                        }
+
+                time.sleep(0.1)
+
+            active = gw.getActiveWindow()
+
+            active_title = (
+                active.title
+                if active is not None
+                else "Unknown"
+            )
+
+            return {
+                "success": False,
+                "message": (
+                    f"Could not verify focus on "
+                    f"'{window.title}'. "
+                    f"Active window is '{active_title}'."
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not focus window "
+                    f"'{title}': {error}"
+                ),
+            }
+
+    # ==================================================
+    # MINIMIZE WINDOW
+    # ==================================================
+
+    def _minimize_window(self, parameters):
+
+        title = (
+            str(parameters.get("title", ""))
+            .strip()
+        )
+
+        if not title:
+            return {
+                "success": False,
+                "message": "No window title specified.",
+            }
+
+        try:
+            window = self._find_window(title)
+
+            if window is None:
+                return {
+                    "success": False,
+                    "message": (
+                        f"Window '{title}' was not found."
+                    ),
+                }
+
+            actual_title = window.title
+
+            if window.isMinimized:
+                return {
+                    "success": True,
+                    "message": (
+                        f"Window already minimized: "
+                        f"{actual_title}"
+                    ),
+                }
+
+            window.minimize()
+            time.sleep(0.2)
+
+            return {
+                "success": True,
+                "message": (
+                    f"Minimized window: {actual_title}"
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not minimize "
+                    f"'{title}': {error}"
+                ),
+            }
+
+    # ==================================================
+    # MAXIMIZE WINDOW
+    # ==================================================
+
+    def _maximize_window(self, parameters):
+
+        title = (
+            str(parameters.get("title", ""))
+            .strip()
+        )
+
+        if not title:
+            return {
+                "success": False,
+                "message": "No window title specified.",
+            }
+
+        try:
+            window = self._find_window(title)
+
+            if window is None:
+                return {
+                    "success": False,
+                    "message": (
+                        f"Window '{title}' was not found."
+                    ),
+                }
+
+            actual_title = window.title
+
+            if window.isMinimized:
+                window.restore()
+                time.sleep(0.2)
+
+            if window.isMaximized:
+                return {
+                    "success": True,
+                    "message": (
+                        f"Window already maximized: "
+                        f"{actual_title}"
+                    ),
+                }
+
+            window.maximize()
+            time.sleep(0.2)
+
+            return {
+                "success": True,
+                "message": (
+                    f"Maximized window: {actual_title}"
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not maximize "
+                    f"'{title}': {error}"
+                ),
+            }
+
+    # ==================================================
+    # RESTORE WINDOW
+    # ==================================================
+
+    def _restore_window(self, parameters):
+
+        title = (
+            str(parameters.get("title", ""))
+            .strip()
+        )
+
+        if not title:
+            return {
+                "success": False,
+                "message": "No window title specified.",
+            }
+
+        try:
+            window = self._find_window(title)
+
+            if window is None:
+                return {
+                    "success": False,
+                    "message": (
+                        f"Window '{title}' was not found."
+                    ),
+                }
+
+            actual_title = window.title
+
+            window.restore()
+            time.sleep(0.2)
+
+            return {
+                "success": True,
+                "message": (
+                    f"Restored window: {actual_title}"
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not restore "
+                    f"'{title}': {error}"
+                ),
+            }
+
+    # ==================================================
+    # CLOSE WINDOW
+    # ==================================================
+
+    def _close_window(self, parameters):
+
+        title = (
+            str(parameters.get("title", ""))
+            .strip()
+        )
+
+        if not title:
+            return {
+                "success": False,
+                "message": "No window title specified.",
+            }
+
+        try:
+            window = self._find_window(title)
+
+            if window is None:
+                return {
+                    "success": False,
+                    "message": (
+                        f"Window '{title}' was not found."
+                    ),
+                }
+
+            actual_title = window.title
+
+            # Normal close request, not a force-kill.
+            window.close()
+            time.sleep(0.2)
+
+            return {
+                "success": True,
+                "message": (
+                    f"Close requested for window: "
+                    f"{actual_title}"
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not close "
+                    f"'{title}': {error}"
+                ),
+            }
+
+    # ==================================================
+    # TYPE TEXT
+    # ==================================================
+
+    def _type_text(self, parameters):
+
+        text = parameters.get("text")
+
+        if text is None:
+            return {
+                "success": False,
+                "message": "No text provided.",
+            }
+
+        interval = parameters.get(
+            "interval",
+            0.02,
+        )
+
+        try:
+            interval = float(interval)
+
+        except (TypeError, ValueError):
+            interval = 0.02
+
+        interval = max(
+            0.0,
+            min(interval, 1.0),
+        )
+
+        try:
+            pyautogui.write(
+                str(text),
+                interval=interval,
+            )
+
+            return {
+                "success": True,
+                "message": "Text typed successfully.",
+            }
+
+        except pyautogui.FailSafeException:
+            return {
+                "success": False,
+                "message": (
+                    "Keyboard operation aborted "
+                    "by failsafe."
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not type text: {error}"
+                ),
+            }
+
+    # ==================================================
+    # HOTKEY
+    # ==================================================
+
+    def _hotkey(self, parameters):
+
+        keys = parameters.get("keys", [])
+
+        if not isinstance(keys, list) or not keys:
+            return {
+                "success": False,
+                "message": "No hotkey specified.",
+            }
+
+        keys = [
+            str(key).lower().strip()
+            for key in keys
+            if str(key).strip()
+        ]
+
+        if not keys:
+            return {
+                "success": False,
+                "message": "No valid hotkey specified.",
+            }
+
+        try:
+            pyautogui.hotkey(*keys)
+
+            return {
+                "success": True,
+                "message": (
+                    f"Pressed {' + '.join(keys)}."
+                ),
+            }
+
+        except pyautogui.FailSafeException:
+            return {
+                "success": False,
+                "message": (
+                    "Keyboard operation aborted "
+                    "by failsafe."
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not press hotkey: {error}"
+                ),
+            }
+
+    # ==================================================
+    # PRESS SINGLE KEY
+    # ==================================================
+
+    def _press_key(self, parameters):
+
+        key = (
+            str(parameters.get("key", ""))
+            .lower()
+            .strip()
+        )
+
+        if not key:
+            return {
+                "success": False,
+                "message": "No key specified.",
+            }
+
+        try:
+            pyautogui.press(key)
+
+            return {
+                "success": True,
+                "message": f"Pressed {key}.",
+            }
+
+        except pyautogui.FailSafeException:
+            return {
+                "success": False,
+                "message": (
+                    "Keyboard operation aborted "
+                    "by failsafe."
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not press '{key}': {error}"
+                ),
+            }
+
+    # ==================================================
+    # MOUSE POSITION
+    # ==================================================
+
+    def _mouse_position(self):
+
+        try:
+            position = pyautogui.position()
+
+            return {
+                "success": True,
+                "message": (
+                    f"Mouse position: "
+                    f"X={position.x}, Y={position.y}"
+                ),
+                "data": {
+                    "x": position.x,
+                    "y": position.y,
+                },
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not get mouse position: "
+                    f"{error}"
+                ),
+            }
+
+    # ==================================================
+    # VALIDATE COORDINATES
+    # ==================================================
+
+    def _validate_coordinates(self, x, y):
+
+        try:
+            x = int(x)
+            y = int(y)
+
+        except (TypeError, ValueError):
+            return None
+
+        width, height = pyautogui.size()
+
+        if not (
+            0 <= x < width
+            and
+            0 <= y < height
+        ):
+            return None
+
+        return x, y
+
+    # ==================================================
+    # MOVE MOUSE
+    # ==================================================
+
+    def _mouse_move(self, parameters):
+
+        coordinates = self._validate_coordinates(
+            parameters.get("x"),
+            parameters.get("y"),
+        )
+
+        if coordinates is None:
+
+            width, height = pyautogui.size()
+
+            return {
+                "success": False,
+                "message": (
+                    "Invalid mouse coordinates. "
+                    f"Screen size is {width}x{height}."
+                ),
+            }
+
+        x, y = coordinates
+
+        duration = parameters.get(
+            "duration",
+            0.25,
+        )
+
+        try:
+            duration = float(duration)
+
+        except (TypeError, ValueError):
+            duration = 0.25
+
+        duration = max(
+            0.0,
+            min(duration, 5.0),
+        )
+
+        try:
+            pyautogui.moveTo(
+                x,
+                y,
+                duration=duration,
+            )
+
+            position = pyautogui.position()
+
+            return {
+                "success": True,
+                "message": (
+                    f"Moved mouse to "
+                    f"X={position.x}, Y={position.y}."
+                ),
+                "data": {
+                    "x": position.x,
+                    "y": position.y,
+                },
+            }
+
+        except pyautogui.FailSafeException:
+            return {
+                "success": False,
+                "message": (
+                    "Mouse operation aborted by failsafe."
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not move mouse: {error}"
+                ),
+            }
+
+    # ==================================================
+    # LEFT CLICK
+    # ==================================================
+
+    def _mouse_click(self, parameters):
+
+        x = parameters.get("x")
+        y = parameters.get("y")
+
+        try:
+
+            # Click specific coordinates.
+            if x is not None or y is not None:
+
+                if x is None or y is None:
+                    return {
+                        "success": False,
+                        "message": (
+                            "Both X and Y coordinates "
+                            "are required."
+                        ),
+                    }
+
+                coordinates = self._validate_coordinates(
+                    x,
+                    y,
+                )
+
+                if coordinates is None:
+                    return {
+                        "success": False,
+                        "message": (
+                            "Click coordinates are "
+                            "outside the screen."
+                        ),
+                    }
+
+                x, y = coordinates
+
+                pyautogui.click(
+                    x=x,
+                    y=y,
+                )
+
+                return {
+                    "success": True,
+                    "message": (
+                        f"Clicked X={x}, Y={y}."
+                    ),
+                    "data": {
+                        "x": x,
+                        "y": y,
+                    },
+                }
+
+            # Click current position.
+            pyautogui.click()
+
+            position = pyautogui.position()
+
+            return {
+                "success": True,
+                "message": (
+                    f"Clicked at "
+                    f"X={position.x}, Y={position.y}."
+                ),
+                "data": {
+                    "x": position.x,
+                    "y": position.y,
+                },
+            }
+
+        except pyautogui.FailSafeException:
+            return {
+                "success": False,
+                "message": (
+                    "Mouse operation aborted by failsafe."
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not click: {error}"
+                ),
+            }
+
+    # ==================================================
+    # DOUBLE CLICK
+    # ==================================================
+
+    def _mouse_double_click(self, parameters):
+
+        x = parameters.get("x")
+        y = parameters.get("y")
+
+        try:
+
+            if x is not None or y is not None:
+
+                if x is None or y is None:
+                    return {
+                        "success": False,
+                        "message": (
+                            "Both X and Y coordinates "
+                            "are required."
+                        ),
+                    }
+
+                coordinates = self._validate_coordinates(
+                    x,
+                    y,
+                )
+
+                if coordinates is None:
+                    return {
+                        "success": False,
+                        "message": (
+                            "Double-click coordinates "
+                            "are outside the screen."
+                        ),
+                    }
+
+                x, y = coordinates
+
+                pyautogui.doubleClick(
+                    x=x,
+                    y=y,
+                    interval=0.15,
+                )
+
+                return {
+                    "success": True,
+                    "message": (
+                        f"Double-clicked "
+                        f"X={x}, Y={y}."
+                    ),
+                    "data": {
+                        "x": x,
+                        "y": y,
+                    },
+                }
+
+            pyautogui.doubleClick(
+                interval=0.15,
+            )
+
+            position = pyautogui.position()
+
+            return {
+                "success": True,
+                "message": (
+                    f"Double-clicked at "
+                    f"X={position.x}, Y={position.y}."
+                ),
+                "data": {
+                    "x": position.x,
+                    "y": position.y,
+                },
+            }
+
+        except pyautogui.FailSafeException:
+            return {
+                "success": False,
+                "message": (
+                    "Mouse operation aborted by failsafe."
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not double-click: {error}"
+                ),
+            }
+
+    # ==================================================
+    # RIGHT CLICK
+    # ==================================================
+
+    def _mouse_right_click(self, parameters):
+
+        x = parameters.get("x")
+        y = parameters.get("y")
+
+        try:
+
+            if x is not None or y is not None:
+
+                if x is None or y is None:
+                    return {
+                        "success": False,
+                        "message": (
+                            "Both X and Y coordinates "
+                            "are required."
+                        ),
+                    }
+
+                coordinates = self._validate_coordinates(
+                    x,
+                    y,
+                )
+
+                if coordinates is None:
+                    return {
+                        "success": False,
+                        "message": (
+                            "Right-click coordinates "
+                            "are outside the screen."
+                        ),
+                    }
+
+                x, y = coordinates
+
+                pyautogui.rightClick(
+                    x=x,
+                    y=y,
+                )
+
+                return {
+                    "success": True,
+                    "message": (
+                        f"Right-clicked "
+                        f"X={x}, Y={y}."
+                    ),
+                    "data": {
+                        "x": x,
+                        "y": y,
+                    },
+                }
+
+            pyautogui.rightClick()
+
+            position = pyautogui.position()
+
+            return {
+                "success": True,
+                "message": (
+                    f"Right-clicked at "
+                    f"X={position.x}, Y={position.y}."
+                ),
+                "data": {
+                    "x": position.x,
+                    "y": position.y,
+                },
+            }
+
+        except pyautogui.FailSafeException:
+            return {
+                "success": False,
+                "message": (
+                    "Mouse operation aborted by failsafe."
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not right-click: {error}"
+                ),
+            }
+
+    # ==================================================
+    # SCROLL
+    # ==================================================
+
+    def _mouse_scroll(self, parameters):
+
+        amount = parameters.get("amount")
+
+        try:
+            amount = int(amount)
+
+        except (TypeError, ValueError):
+            return {
+                "success": False,
+                "message": "Invalid scroll amount.",
+            }
+
+        # Limit a single command.
+        amount = max(
+            -100,
+            min(amount, 100),
+        )
+
+        if amount == 0:
+            return {
+                "success": True,
+                "message": "Scroll amount was zero.",
+            }
+
+        try:
+            pyautogui.scroll(amount)
+
+            direction = (
+                "up"
+                if amount > 0
+                else "down"
+            )
+
+            return {
+                "success": True,
+                "message": (
+                    f"Scrolled {direction} "
+                    f"{abs(amount)}."
+                ),
+                "data": {
+                    "direction": direction,
+                    "amount": abs(amount),
+                },
+            }
+
+        except pyautogui.FailSafeException:
+            return {
+                "success": False,
+                "message": (
+                    "Mouse operation aborted by failsafe."
+                ),
+            }
+
+        except Exception as error:
+            return {
+                "success": False,
+                "message": (
+                    f"Could not scroll: {error}"
+                ),
+            }

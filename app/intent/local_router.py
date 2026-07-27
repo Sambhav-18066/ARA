@@ -1,0 +1,1261 @@
+import re
+
+from app.intent.models import Intent
+
+
+class LocalRouter:
+    """
+    Deterministic local intent router for ARA.
+
+    Returns:
+        Intent       -> single local action
+        list[Intent] -> multi-step local task
+        None         -> fall back to AI planner
+    """
+
+    # ==================================================
+    # SUPPORTED APPLICATIONS
+    # ==================================================
+
+    SUPPORTED_APPS = {
+        "notepad",
+        "calculator",
+        "paint",
+        "chrome",
+    }
+
+    # ==================================================
+    # KNOWN WEBSITES
+    # ==================================================
+
+    WEBSITES = {
+        "youtube": "https://www.youtube.com",
+        "google": "https://www.google.com",
+        "github": "https://github.com",
+    }
+
+    # ==================================================
+    # MAIN ROUTER
+    # ==================================================
+
+    def route(self, user_input: str):
+
+        if not user_input:
+            return None
+
+        original_text = user_input.strip()
+
+        if not original_text:
+            return None
+
+        text = original_text.lower()
+
+        # --------------------------------------------------
+        # MULTI-STEP COMMANDS FIRST
+        # --------------------------------------------------
+
+        sequence = self._route_sequence(
+            original_text
+        )
+
+        if sequence:
+            return sequence
+
+        # --------------------------------------------------
+        # VISION
+        # --------------------------------------------------
+
+        intent = self._route_vision(text)
+
+        if intent:
+            return intent
+
+        # --------------------------------------------------
+        # VISUAL ACTION
+        #
+        # Must come before ordinary mouse routing.
+        # --------------------------------------------------
+
+        intent = self._route_visual_action(text)
+
+        if intent:
+            return intent
+
+        # --------------------------------------------------
+        # WINDOW CONTROL
+        # --------------------------------------------------
+
+        intent = self._route_window_control(text)
+
+        if intent:
+            return intent
+
+        # --------------------------------------------------
+        # MOUSE CONTROL
+        # --------------------------------------------------
+
+        intent = self._route_mouse(text)
+
+        if intent:
+            return intent
+
+        # --------------------------------------------------
+        # APPLICATIONS
+        # --------------------------------------------------
+
+        intent = self._route_application(text)
+
+        if intent:
+            return intent
+
+        # --------------------------------------------------
+        # WEBSITES
+        # --------------------------------------------------
+
+        intent = self._route_website(text)
+
+        if intent:
+            return intent
+
+        # --------------------------------------------------
+        # WEB SEARCH
+        # --------------------------------------------------
+
+        intent = self._route_search(text)
+
+        if intent:
+            return intent
+
+        # --------------------------------------------------
+        # SYSTEM INFORMATION
+        # --------------------------------------------------
+
+        intent = self._route_system_info(text)
+
+        if intent:
+            return intent
+
+        # --------------------------------------------------
+        # CALCULATOR
+        # --------------------------------------------------
+
+        intent = self._route_calculator(text)
+
+        if intent:
+            return intent
+
+        # Nothing deterministic matched.
+        # AI planner may attempt the request.
+
+        return None
+
+    # ==================================================
+    # MULTI-STEP TASKS
+    # ==================================================
+
+    def _route_sequence(
+        self,
+        user_input: str,
+    ):
+
+        text = user_input.strip()
+
+        # --------------------------------------------------
+        # OPEN NOTEPAD AND WRITE
+        #
+        # open notepad and write Hello from ARA
+        # open notepad and type Hello
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"open\s+notepad\s+and\s+"
+            r"(?:write|type)\s+(.+)",
+            text,
+            flags=re.IGNORECASE,
+        )
+
+        if match:
+
+            content = (
+                match
+                .group(1)
+                .strip()
+            )
+
+            if not content:
+                return None
+
+            return [
+                Intent(
+                    intent="open_application",
+                    skill="windows",
+                    action="open",
+                    parameters={
+                        "application": "notepad",
+                    },
+                    confidence=1.0,
+                ),
+
+                Intent(
+                    intent="wait_for_window",
+                    skill="windows",
+                    action="wait_for_window",
+                    parameters={
+                        "title": "Notepad",
+                        "timeout": 10,
+                    },
+                    confidence=1.0,
+                ),
+
+                Intent(
+                    intent="focus_window",
+                    skill="windows",
+                    action="focus",
+                    parameters={
+                        "title": "Notepad",
+                    },
+                    confidence=1.0,
+                ),
+
+                Intent(
+                    intent="type_text",
+                    skill="windows",
+                    action="type",
+                    parameters={
+                        "text": content,
+                    },
+                    confidence=1.0,
+                ),
+            ]
+
+        return None
+
+    # ==================================================
+    # VISION
+    # ==================================================
+
+    def _route_vision(
+        self,
+        text: str,
+    ):
+
+        normalized = (
+            text
+            .rstrip("?")
+            .strip()
+        )
+
+        # --------------------------------------------------
+        # SCREENSHOT
+        # --------------------------------------------------
+
+        capture_commands = {
+            "screenshot",
+            "take screenshot",
+            "take a screenshot",
+            "capture screen",
+            "capture my screen",
+            "capture the screen",
+            "take a screen capture",
+        }
+
+        if normalized in capture_commands:
+
+            return Intent(
+                intent="capture_screen",
+                skill="vision",
+                action="capture",
+                parameters={},
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # LOCAL OCR — READ SCREEN
+        # --------------------------------------------------
+
+        read_commands = {
+            "read my screen",
+            "read the screen",
+            "read screen",
+            "read what's on my screen",
+            "read what is on my screen",
+            "extract text from screen",
+            "extract text from my screen",
+            "what text is on my screen",
+            "what text is on the screen",
+        }
+
+        if normalized in read_commands:
+
+            return Intent(
+                intent="read_screen",
+                skill="vision",
+                action="ocr",
+                parameters={},
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # LOCAL OCR — FIND TEXT
+        #
+        # find chrome on screen
+        # find chrome on my screen
+        # locate settings on screen
+        # where is search on my screen
+        # --------------------------------------------------
+
+        find_patterns = (
+            r"find\s+(.+?)\s+on\s+"
+            r"(?:my\s+|the\s+)?screen",
+
+            r"locate\s+(.+?)\s+on\s+"
+            r"(?:my\s+|the\s+)?screen",
+
+            r"where\s+is\s+(.+?)\s+on\s+"
+            r"(?:my\s+|the\s+)?screen",
+        )
+
+        for pattern in find_patterns:
+
+            match = re.fullmatch(
+                pattern,
+                normalized,
+                flags=re.IGNORECASE,
+            )
+
+            if not match:
+                continue
+
+            target = (
+                match
+                .group(1)
+                .strip()
+            )
+
+            if not target:
+                return None
+
+            return Intent(
+                intent="find_screen_text",
+                skill="vision",
+                action="find_text",
+                parameters={
+                    "text": target,
+                },
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # SELECT VISUAL TARGET
+        #
+        # This finds AND ranks a target but does NOT click.
+        #
+        # select chrome on my screen
+        # target settings on screen
+        # --------------------------------------------------
+
+        select_patterns = (
+            r"select\s+(.+?)\s+on\s+"
+            r"(?:my\s+|the\s+)?screen",
+
+            r"target\s+(.+?)\s+on\s+"
+            r"(?:my\s+|the\s+)?screen",
+        )
+
+        for pattern in select_patterns:
+
+            match = re.fullmatch(
+                pattern,
+                normalized,
+                flags=re.IGNORECASE,
+            )
+
+            if not match:
+                continue
+
+            target = (
+                match
+                .group(1)
+                .strip()
+            )
+
+            if not target:
+                return None
+
+            return Intent(
+                intent="select_screen_text",
+                skill="vision",
+                action="select_text",
+                parameters={
+                    "text": target,
+                },
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # AI SCREEN ANALYSIS
+        # --------------------------------------------------
+
+        analyze_commands = {
+            "what is on my screen",
+            "what's on my screen",
+            "what is on the screen",
+            "what's on the screen",
+            "describe my screen",
+            "describe the screen",
+            "look at my screen",
+            "look at the screen",
+            "analyze my screen",
+            "analyse my screen",
+            "analyze the screen",
+            "analyse the screen",
+            "what do you see",
+            "what can you see",
+            "tell me what is on my screen",
+            "tell me what's on my screen",
+        }
+
+        if normalized in analyze_commands:
+
+            return Intent(
+                intent="analyze_screen",
+                skill="vision",
+                action="analyze",
+                parameters={},
+                confidence=1.0,
+            )
+
+        return None
+
+    # ==================================================
+    # VISUAL ACTION
+    # ==================================================
+
+    def _route_visual_action(
+        self,
+        text: str,
+    ):
+
+        normalized = (
+            text
+            .rstrip("?")
+            .strip()
+        )
+
+        # --------------------------------------------------
+        # CLICK TEXT ON SCREEN
+        #
+        # click chrome on my screen
+        # click settings on screen
+        # click on search on the screen
+        # --------------------------------------------------
+
+        patterns = (
+            r"click\s+(.+?)\s+on\s+"
+            r"(?:my\s+|the\s+)?screen",
+
+            r"click\s+on\s+(.+?)\s+on\s+"
+            r"(?:my\s+|the\s+)?screen",
+        )
+
+        for pattern in patterns:
+
+            match = re.fullmatch(
+                pattern,
+                normalized,
+                flags=re.IGNORECASE,
+            )
+
+            if not match:
+                continue
+
+            target = (
+                match
+                .group(1)
+                .strip()
+            )
+
+            if not target:
+                return None
+
+            return Intent(
+                intent="visual_click",
+                skill="visual_action",
+                action="click_text",
+                parameters={
+                    "text": target,
+                },
+                confidence=1.0,
+            )
+
+        return None
+
+    # ==================================================
+    # APPLICATION CONTROL
+    # ==================================================
+
+    def _route_application(
+        self,
+        text: str,
+    ):
+
+        match = re.fullmatch(
+            r"(?:open|launch|start)\s+(.+)",
+            text,
+        )
+
+        if not match:
+            return None
+
+        application = (
+            match
+            .group(1)
+            .strip()
+        )
+
+        if application not in self.SUPPORTED_APPS:
+            return None
+
+        return Intent(
+            intent="open_application",
+            skill="windows",
+            action="open",
+            parameters={
+                "application": application,
+            },
+            confidence=1.0,
+        )
+
+    # ==================================================
+    # WEBSITE CONTROL
+    # ==================================================
+
+    def _route_website(
+        self,
+        text: str,
+    ):
+
+        match = re.fullmatch(
+            r"(?:open|visit|go\s+to)\s+(.+)",
+            text,
+        )
+
+        if not match:
+            return None
+
+        website = (
+            match
+            .group(1)
+            .strip()
+        )
+
+        # --------------------------------------------------
+        # KNOWN ALIAS
+        # --------------------------------------------------
+
+        alias = (
+            website
+            .removeprefix("www.")
+        )
+
+        url = self.WEBSITES.get(
+            alias
+        )
+
+        if url:
+
+            return Intent(
+                intent="open_website",
+                skill="browser",
+                action="open",
+                parameters={
+                    "url": url,
+                },
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # EXPLICIT DOMAIN / URL
+        # --------------------------------------------------
+
+        if re.fullmatch(
+            r"(?:https?://)?"
+            r"(?:www\.)?"
+            r"[a-z0-9.-]+\.[a-z]{2,}"
+            r"(?:/[^\s]*)?",
+            website,
+        ):
+
+            if not website.startswith(
+                (
+                    "http://",
+                    "https://",
+                )
+            ):
+
+                website = (
+                    "https://"
+                    + website
+                )
+
+            return Intent(
+                intent="open_website",
+                skill="browser",
+                action="open",
+                parameters={
+                    "url": website,
+                },
+                confidence=1.0,
+            )
+
+        return None
+
+    # ==================================================
+    # WEB SEARCH
+    # ==================================================
+
+    def _route_search(
+        self,
+        text: str,
+    ):
+
+        patterns = (
+            r"search\s+google\s+for\s+(.+)",
+            r"search\s+for\s+(.+)",
+            r"google\s+(.+)",
+            r"search\s+(.+)",
+        )
+
+        for pattern in patterns:
+
+            match = re.fullmatch(
+                pattern,
+                text,
+            )
+
+            if not match:
+                continue
+
+            query = (
+                match
+                .group(1)
+                .strip()
+            )
+
+            if not query:
+                return None
+
+            return Intent(
+                intent="web_search",
+                skill="browser",
+                action="search",
+                parameters={
+                    "query": query,
+                },
+                confidence=1.0,
+            )
+
+        return None
+
+    # ==================================================
+    # SYSTEM INFORMATION
+    # ==================================================
+
+    def _route_system_info(
+        self,
+        text: str,
+    ):
+
+        normalized = (
+            text
+            .rstrip("?")
+            .strip()
+        )
+
+        commands = {
+            "system info",
+            "system information",
+            "show system info",
+            "show system information",
+            "what operating system am i running",
+            "what os am i running",
+            "what is my operating system",
+            "what is my os",
+            "what's my operating system",
+            "what's my os",
+        }
+
+        if normalized not in commands:
+            return None
+
+        return Intent(
+            intent="system_info",
+            skill="system",
+            action="info",
+            parameters={},
+            confidence=1.0,
+        )
+
+    # ==================================================
+    # CALCULATOR
+    # ==================================================
+
+    def _route_calculator(
+        self,
+        text: str,
+    ):
+
+        expression = text.strip()
+
+        prefixes = (
+            "calculate ",
+            "compute ",
+            "what is ",
+            "what's ",
+        )
+
+        prefix_found = False
+
+        for prefix in prefixes:
+
+            if expression.startswith(
+                prefix
+            ):
+
+                expression = expression[
+                    len(prefix):
+                ].strip()
+
+                prefix_found = True
+
+                break
+
+        # --------------------------------------------------
+        # CLEAN EXPRESSION
+        # --------------------------------------------------
+
+        expression = (
+            expression
+            .rstrip("?")
+            .strip()
+        )
+
+        expression = (
+            expression
+            .replace("×", "*")
+            .replace("÷", "/")
+        )
+
+        if not expression:
+            return None
+
+        # Must contain a number.
+
+        if not re.search(
+            r"\d",
+            expression,
+        ):
+
+            return None
+
+        # Only arithmetic characters allowed.
+
+        if not re.fullmatch(
+            r"[0-9\s+\-*/%.()]+",
+            expression,
+        ):
+
+            return None
+
+        # A standalone number should not accidentally
+        # become a calculation unless explicitly requested.
+
+        if (
+            not prefix_found
+            and not re.search(
+                r"[+\-*/%]",
+                expression,
+            )
+        ):
+
+            return None
+
+        return Intent(
+            intent="calculate",
+            skill="calculator",
+            action="calculate",
+            parameters={
+                "expression": expression,
+            },
+            confidence=1.0,
+        )
+
+    # ==================================================
+    # WINDOW CONTROL
+    # ==================================================
+
+    def _route_window_control(
+        self,
+        text: str,
+    ):
+
+        normalized = (
+            text
+            .rstrip("?")
+            .strip()
+        )
+
+        # --------------------------------------------------
+        # ACTIVE WINDOW
+        # --------------------------------------------------
+
+        active_commands = {
+            "active window",
+            "current window",
+            "what window is active",
+            "what is the active window",
+            "which window is active",
+            "what window am i on",
+        }
+
+        if normalized in active_commands:
+
+            return Intent(
+                intent="active_window",
+                skill="windows",
+                action="active_window",
+                parameters={},
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # LIST WINDOWS
+        # --------------------------------------------------
+
+        list_commands = {
+            "list windows",
+            "show windows",
+            "show open windows",
+            "list open windows",
+            "what windows are open",
+            "which windows are open",
+        }
+
+        if normalized in list_commands:
+
+            return Intent(
+                intent="list_windows",
+                skill="windows",
+                action="list_windows",
+                parameters={},
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # FOCUS
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"(?:focus|focus\s+on|switch\s+to)"
+            r"\s+(.+)",
+            text,
+        )
+
+        if match:
+
+            title = (
+                match
+                .group(1)
+                .strip()
+            )
+
+            if title:
+
+                return Intent(
+                    intent="focus_window",
+                    skill="windows",
+                    action="focus",
+                    parameters={
+                        "title": title,
+                    },
+                    confidence=1.0,
+                )
+
+        # --------------------------------------------------
+        # MINIMIZE
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"minimi[sz]e\s+(.+)",
+            text,
+        )
+
+        if match:
+
+            title = (
+                match
+                .group(1)
+                .strip()
+            )
+
+            if title:
+
+                return Intent(
+                    intent="minimize_window",
+                    skill="windows",
+                    action="minimize",
+                    parameters={
+                        "title": title,
+                    },
+                    confidence=1.0,
+                )
+
+        # --------------------------------------------------
+        # MAXIMIZE
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"maximi[sz]e\s+(.+)",
+            text,
+        )
+
+        if match:
+
+            title = (
+                match
+                .group(1)
+                .strip()
+            )
+
+            if title:
+
+                return Intent(
+                    intent="maximize_window",
+                    skill="windows",
+                    action="maximize",
+                    parameters={
+                        "title": title,
+                    },
+                    confidence=1.0,
+                )
+
+        # --------------------------------------------------
+        # RESTORE
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"restore\s+(.+)",
+            text,
+        )
+
+        if match:
+
+            title = (
+                match
+                .group(1)
+                .strip()
+            )
+
+            if title:
+
+                return Intent(
+                    intent="restore_window",
+                    skill="windows",
+                    action="restore",
+                    parameters={
+                        "title": title,
+                    },
+                    confidence=1.0,
+                )
+
+        # --------------------------------------------------
+        # CLOSE
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"close\s+(.+)",
+            text,
+        )
+
+        if match:
+
+            title = (
+                match
+                .group(1)
+                .strip()
+            )
+
+            if title:
+
+                return Intent(
+                    intent="close_window",
+                    skill="windows",
+                    action="close",
+                    parameters={
+                        "title": title,
+                    },
+                    confidence=1.0,
+                )
+
+        return None
+
+    # ==================================================
+    # MOUSE CONTROL
+    # ==================================================
+
+    def _route_mouse(
+        self,
+        text: str,
+    ):
+
+        normalized = (
+            text
+            .rstrip("?")
+            .strip()
+        )
+
+        # --------------------------------------------------
+        # POSITION
+        # --------------------------------------------------
+
+        position_commands = {
+            "mouse position",
+            "cursor position",
+            "where is my mouse",
+            "where is the mouse",
+            "where is my cursor",
+            "where is the cursor",
+        }
+
+        if normalized in position_commands:
+
+            return Intent(
+                intent="mouse_position",
+                skill="windows",
+                action="mouse_position",
+                parameters={},
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # MOVE
+        #
+        # move mouse to 500 300
+        # move mouse to 500,300
+        # move cursor 500 300
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"(?:move\s+mouse|move\s+cursor)"
+            r"(?:\s+to)?\s+"
+            r"(\d+)"
+            r"(?:\s*,\s*|\s+)"
+            r"(\d+)",
+            text,
+        )
+
+        if match:
+
+            x = int(
+                match.group(1)
+            )
+
+            y = int(
+                match.group(2)
+            )
+
+            return Intent(
+                intent="mouse_move",
+                skill="windows",
+                action="mouse_move",
+                parameters={
+                    "x": x,
+                    "y": y,
+                },
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # DOUBLE CLICK
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"double\s+click"
+            r"(?:\s+(?:at\s+)?)?"
+            r"(?:(\d+)"
+            r"(?:\s*,\s*|\s+)"
+            r"(\d+))?",
+            text,
+        )
+
+        if match:
+
+            parameters = {}
+
+            if (
+                match.group(1) is not None
+                and
+                match.group(2) is not None
+            ):
+
+                parameters = {
+                    "x": int(
+                        match.group(1)
+                    ),
+                    "y": int(
+                        match.group(2)
+                    ),
+                }
+
+            return Intent(
+                intent="mouse_double_click",
+                skill="windows",
+                action="double_click",
+                parameters=parameters,
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # RIGHT CLICK
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"right\s+click"
+            r"(?:\s+(?:at\s+)?)?"
+            r"(?:(\d+)"
+            r"(?:\s*,\s*|\s+)"
+            r"(\d+))?",
+            text,
+        )
+
+        if match:
+
+            parameters = {}
+
+            if (
+                match.group(1) is not None
+                and
+                match.group(2) is not None
+            ):
+
+                parameters = {
+                    "x": int(
+                        match.group(1)
+                    ),
+                    "y": int(
+                        match.group(2)
+                    ),
+                }
+
+            return Intent(
+                intent="mouse_right_click",
+                skill="windows",
+                action="right_click",
+                parameters=parameters,
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # LEFT CLICK / CLICK COORDINATES
+        #
+        # click
+        # click 500 300
+        # click at 500,300
+        # left click
+        #
+        # NOTE:
+        # "click Chrome on my screen" has already been
+        # intercepted by _route_visual_action().
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"(?:click|left\s+click)"
+            r"(?:\s+(?:at\s+)?)?"
+            r"(?:(\d+)"
+            r"(?:\s*,\s*|\s+)"
+            r"(\d+))?",
+            text,
+        )
+
+        if match:
+
+            parameters = {}
+
+            if (
+                match.group(1) is not None
+                and
+                match.group(2) is not None
+            ):
+
+                parameters = {
+                    "x": int(
+                        match.group(1)
+                    ),
+                    "y": int(
+                        match.group(2)
+                    ),
+                }
+
+            return Intent(
+                intent="mouse_click",
+                skill="windows",
+                action="click",
+                parameters=parameters,
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # SCROLL UP
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"scroll\s+up(?:\s+(\d+))?",
+            text,
+        )
+
+        if match:
+
+            amount = (
+                int(match.group(1))
+                if match.group(1)
+                else 3
+            )
+
+            return Intent(
+                intent="mouse_scroll",
+                skill="windows",
+                action="scroll",
+                parameters={
+                    "amount": amount,
+                },
+                confidence=1.0,
+            )
+
+        # --------------------------------------------------
+        # SCROLL DOWN
+        # --------------------------------------------------
+
+        match = re.fullmatch(
+            r"scroll\s+down(?:\s+(\d+))?",
+            text,
+        )
+
+        if match:
+
+            amount = (
+                int(match.group(1))
+                if match.group(1)
+                else 3
+            )
+
+            return Intent(
+                intent="mouse_scroll",
+                skill="windows",
+                action="scroll",
+                parameters={
+                    "amount": -amount,
+                },
+                confidence=1.0,
+            )
+
+        return None

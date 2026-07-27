@@ -1,12 +1,18 @@
 from fastapi import FastAPI
 
 from app.ara import ARA
+from pydantic import BaseModel
+
+class PromptRequest(BaseModel):
+    prompt: str
 
 ara = ARA()
+ara.boot()
 
 app = FastAPI(
     title="ARA",
-    version=ara.version
+    version=ARA.VERSION,
+    description="ARA AI Operating System",
 )
 
 
@@ -25,8 +31,6 @@ def status():
 
 
 @app.post("/process")
-def process(data: dict):
+def process(data: PromptRequest):
 
-    prompt = data.get("prompt", "")
-
-    return ara.process(prompt)
+    return ara.process(data.prompt)
